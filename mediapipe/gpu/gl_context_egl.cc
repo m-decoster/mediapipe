@@ -91,18 +91,30 @@ GlContext::StatusOrGlContext GlContext::Create(EGLContext share_context,
 
   const EGLint config_attr[] = {
       // clang-format off
-      EGL_RENDERABLE_TYPE, gl_version == 3 ? EGL_OPENGL_ES3_BIT_KHR
-                                           : EGL_OPENGL_ES2_BIT,
-      // Allow rendering to pixel buffers or directly to windows.
-      EGL_SURFACE_TYPE, EGL_PBUFFER_BIT | EGL_WINDOW_BIT,
-      EGL_RED_SIZE, 8,
-      EGL_GREEN_SIZE, 8,
-      EGL_BLUE_SIZE, 8,
-      EGL_ALPHA_SIZE, 8,  // if you need the alpha channel
-      EGL_DEPTH_SIZE, 16,  // if you need the depth buffer
-      EGL_NONE
+        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+          EGL_BLUE_SIZE, 8,
+          EGL_GREEN_SIZE, 8,
+          EGL_RED_SIZE, 8,
+          EGL_DEPTH_SIZE, 8,
+          EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+          EGL_NONE
       // clang-format on
   };
+//  const EGLint config_attr[] = {
+//      // clang-format off
+//      EGL_RENDERABLE_TYPE, gl_version == 3 ? EGL_OPENGL_ES3_BIT_KHR
+//                                           : EGL_OPENGL_ES2_BIT,
+//      // Allow rendering to pixel buffers or directly to windows.
+//      EGL_SURFACE_TYPE, EGL_PBUFFER_BIT | EGL_WINDOW_BIT,
+//      EGL_RED_SIZE, 8,
+//      EGL_GREEN_SIZE, 8,
+//      EGL_BLUE_SIZE, 8,
+//      EGL_ALPHA_SIZE, 8,  // if you need the alpha channel
+//      EGL_DEPTH_SIZE, 16,  // if you need the depth buffer
+//      EGL_NONE
+//      // clang-format on
+//  };
+
 
   // TODO: improve config selection.
   EGLint num_configs;
