@@ -40,3 +40,12 @@ cc_binary(
         "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )
+
+# Linux only
+cc_binary(
+    name = "hand_tracking_extract_gpu",
+    deps = [
+        "//mediapipe/examples/desktop:hand_tracking_extract_gpu",
+        "//mediapipe/graphs/hand_tracking:gpu_extractor",
+    ],
+)

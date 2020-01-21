@@ -73,3 +73,23 @@ mediapipe_binary_graph(
     output_name = "hand_detection_mobile_gpu.binarypb",
     deps = [":detection_mobile_calculators"],
 )
+
+cc_library(
+    name = "gpu_extractor",
+    deps = [
+        "//mediapipe/calculators/core:flow_limiter_calculator",
+        "//mediapipe/calculators/core:gate_calculator",
+        "//mediapipe/calculators/core:merge_calculator",
+        "//mediapipe/calculators/core:previous_loopback_calculator",
+        "//mediapipe/calculators/util:landmarks_to_floats_calculator",
+        "//mediapipe/graphs/hand_tracking/subgraphs:hand_detection_gpu",
+        "//mediapipe/graphs/hand_tracking/subgraphs:hand_landmark_gpu",
+    ],
+)
+
+mediapipe_binary_graph(
+    name = "hand_tracking_extractor_gpu_binary_graph",
+    graph = "hand_tracking_desktop_gpu.pbtxt",
+    output_name = "hand_tracking_desktop_gpu.binarypb",
+    deps = [":gpu_extractor"],
+)
