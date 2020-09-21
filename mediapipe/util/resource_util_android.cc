@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
+
 #include "absl/strings/match.h"
 #include "mediapipe/framework/port/ret_check.h"
 #include "mediapipe/framework/port/singleton.h"
@@ -61,10 +63,14 @@ namespace {
     return file::GetContents(path, output, file::Defaults());
   }
 
-  std::vector<uint8_t> data;
-  RET_CHECK(Singleton<AssetManager>::get()->ReadFile(path, &data))
+  if (absl::StartsWith(path, "content://")) {
+    MP_RETURN_IF_ERROR(
+        Singleton<AssetManager>::get()->ReadContentUri(path, output));
+    return ::mediapipe::OkStatus();
+  }
+
+  RET_CHECK(Singleton<AssetManager>::get()->ReadFile(path, output))
       << "could not read asset: " << path;
-  output->assign(reinterpret_cast<char*>(data.data()), data.size());
   return ::mediapipe::OkStatus();
 }
 

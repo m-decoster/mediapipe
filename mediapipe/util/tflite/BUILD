@@ -13,11 +13,20 @@
 # limitations under the License.
 #
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 package(default_visibility = [
     "//mediapipe:__subpackages__",
 ])
+
+cc_library(
+    name = "config",
+    hdrs = ["config.h"],
+    features = ["-parse_headers"],
+    deps = [
+        "//mediapipe/framework:calculator_framework",
+    ],
+)
 
 cc_library(
     name = "cpu_op_resolver",
@@ -40,4 +49,45 @@ cc_library(
         "@org_tensorflow//tensorflow/lite:builtin_op_data",
         "@org_tensorflow//tensorflow/lite/kernels:builtin_ops",
     ],
+)
+
+cc_library(
+    name = "tflite_gpu_runner",
+    srcs = select({
+        "//mediapipe:ios": [],
+        "//mediapipe:macos": [],
+        "//conditions:default": ["tflite_gpu_runner.cc"],
+    }),
+    hdrs = select({
+        "//mediapipe:ios": [],
+        "//mediapipe:macos": [],
+        "//conditions:default": ["tflite_gpu_runner.h"],
+    }),
+    deps = select({
+        "//mediapipe:ios": [],
+        "//mediapipe:macos": [],
+        "//conditions:default": [
+            "@com_google_absl//absl/strings",
+            "//mediapipe/framework/port:ret_check",
+            "//mediapipe/framework/port:status",
+            "//mediapipe/framework/port:statusor",
+            "@org_tensorflow//tensorflow/lite:framework",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu:api",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/common:model",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/common/testing:tflite_model_reader",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/gl:api2",
+        ],
+        "//mediapipe:android": [
+            "@com_google_absl//absl/strings",
+            "//mediapipe/framework/port:ret_check",
+            "//mediapipe/framework/port:status",
+            "//mediapipe/framework/port:statusor",
+            "@org_tensorflow//tensorflow/lite:framework",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu:api",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/cl:api",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/common:model",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/common/testing:tflite_model_reader",
+            "@org_tensorflow//tensorflow/lite/delegates/gpu/gl:api2",
+        ],
+    }) + ["@org_tensorflow//tensorflow/lite/core/api"],
 )

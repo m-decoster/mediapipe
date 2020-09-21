@@ -29,6 +29,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/clock.h"
@@ -64,6 +65,9 @@ namespace mediapipe {
 
 namespace {
 
+using testing::ElementsAre;
+using testing::HasSubstr;
+
 // Pass packets through. Note that it calls SetOffset() in Process()
 // instead of Open().
 class SetOffsetInProcessCalculator : public CalculatorBase {
@@ -96,11 +100,11 @@ class SquareIntCalculator : public CalculatorBase {
   static ::mediapipe::Status GetContract(CalculatorContract* cc) {
     cc->Inputs().Index(0).Set<int>();
     cc->Outputs().Index(0).SetSameAs(&cc->Inputs().Index(0));
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) final {
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -130,6 +134,7 @@ class DemuxTimedCalculator : public CalculatorBase {
          id < cc->Outputs().EndId("OUTPUT"); ++id) {
       cc->Outputs().Get(id).SetSameAs(data_input);
     }
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -138,7 +143,6 @@ class DemuxTimedCalculator : public CalculatorBase {
     data_input_ = cc->Inputs().GetId("INPUT", 0);
     output_base_ = cc->Outputs().GetId("OUTPUT", 0);
     num_outputs_ = cc->Outputs().NumEntries("OUTPUT");
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -190,6 +194,7 @@ class MuxTimedCalculator : public CalculatorBase {
     }
     RET_CHECK_EQ(cc->Outputs().NumEntries(), 1);
     cc->Outputs().Tag("OUTPUT").SetSameAs(data_input0);
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -198,7 +203,6 @@ class MuxTimedCalculator : public CalculatorBase {
     data_input_base_ = cc->Inputs().GetId("INPUT", 0);
     num_data_inputs_ = cc->Inputs().NumEntries("INPUT");
     output_ = cc->Outputs().GetId("OUTPUT", 0);
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -228,11 +232,11 @@ class IntAdderCalculator : public CalculatorBase {
       cc->Inputs().Index(i).Set<int>();
     }
     cc->Outputs().Index(0).Set<int>();
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) final {
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -256,11 +260,11 @@ class FloatAdderCalculator : public CalculatorBase {
       cc->Inputs().Index(i).Set<float>();
     }
     cc->Outputs().Index(0).Set<float>();
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) final {
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -284,11 +288,11 @@ class IntMultiplierCalculator : public CalculatorBase {
       cc->Inputs().Index(i).Set<int>();
     }
     cc->Outputs().Index(0).Set<int>();
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) final {
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -312,12 +316,12 @@ class FloatScalarMultiplierCalculator : public CalculatorBase {
     cc->Inputs().Index(0).Set<float>();
     cc->Outputs().Index(0).Set<float>();
     cc->InputSidePackets().Index(0).Set<float>();
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) final {
     scalar_ = cc->InputSidePackets().Index(0).Get<float>();
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -339,11 +343,11 @@ class IntToFloatCalculator : public CalculatorBase {
   static ::mediapipe::Status GetContract(CalculatorContract* cc) {
     cc->Inputs().Index(0).Set<int>();
     cc->Outputs().Index(0).Set<float>();
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) final {
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -526,7 +530,7 @@ REGISTER_CALCULATOR(Modulo3SourceCalculator);
 // calculator.
 class OutputAllSourceCalculator : public CalculatorBase {
  public:
-  static const int kNumOutputPackets = 100;
+  static constexpr int kNumOutputPackets = 100;
 
   static ::mediapipe::Status GetContract(CalculatorContract* cc) {
     cc->Outputs().Index(0).Set<int>();
@@ -549,7 +553,7 @@ REGISTER_CALCULATOR(OutputAllSourceCalculator);
 // progress.
 class OutputOneAtATimeSourceCalculator : public CalculatorBase {
  public:
-  static const int kNumOutputPackets = 1000;
+  static constexpr int kNumOutputPackets = 1000;
 
   static ::mediapipe::Status GetContract(CalculatorContract* cc) {
     cc->Outputs().Index(0).Set<int>();
@@ -576,7 +580,7 @@ REGISTER_CALCULATOR(OutputOneAtATimeSourceCalculator);
 // input stream connected to this calculator can become full.
 class DecimatorCalculator : public CalculatorBase {
  public:
-  static const int kDecimationRatio = 101;
+  static constexpr int kDecimationRatio = 101;
 
   static ::mediapipe::Status GetContract(CalculatorContract* cc) {
     cc->Inputs().Index(0).SetAny();
@@ -933,11 +937,11 @@ class SemaphoreCalculator : public CalculatorBase {
     cc->Outputs().Index(0).SetSameAs(&cc->Inputs().Index(0));
     cc->InputSidePackets().Tag("POST_SEM").Set<Semaphore*>();
     cc->InputSidePackets().Tag("WAIT_SEM").Set<Semaphore*>();
+    cc->SetTimestampOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) override {
-    cc->SetOffset(TimestampDiff(0));
     return ::mediapipe::OkStatus();
   }
 
@@ -1824,14 +1828,14 @@ TEST(CalculatorGraph, StatusHandlerInputVerification) {
 
   status = graph->Initialize(config);
   EXPECT_THAT(status.message(),
-              testing::AllOf(testing::HasSubstr("StringStatusHandler"),
-                             // The problematic input side packet.
-                             testing::HasSubstr("generated_by_generator"),
-                             // Actual type.
-                             testing::HasSubstr("string"),
-                             // Expected type.
-                             testing::HasSubstr(
-                                 MediaPipeTypeStringOrDemangled<uint32>())));
+              testing::AllOf(
+                  testing::HasSubstr("StringStatusHandler"),
+                  // The problematic input side packet.
+                  testing::HasSubstr("generated_by_generator"),
+                  // Actual type.
+                  testing::HasSubstr(MediaPipeTypeStringOrDemangled<uint32>()),
+                  // Expected type.
+                  testing::HasSubstr("string")));
 }
 
 TEST(CalculatorGraph, GenerateInInitialize) {
@@ -4556,6 +4560,69 @@ TEST(CalculatorGraph, SimpleMuxCalculatorWithCustomInputStreamHandler) {
               "timestamps that are not strictly monotonically increasing"),
           // Link to the possible solution.
           testing::HasSubstr("ImmediateInputStreamHandler class comment")));
+}
+
+void DoTestMultipleGraphRuns(absl::string_view input_stream_handler,
+                             bool select_packet) {
+  std::string graph_proto = absl::StrFormat(R"(
+    input_stream: 'input'
+    input_stream: 'select'
+    node {
+      calculator: 'PassThroughCalculator'
+      input_stream: 'input'
+      input_stream: 'select'
+      input_stream_handler {
+        input_stream_handler: "%s"
+      }
+      output_stream: 'output'
+      output_stream: 'select_out'
+    }
+  )",
+                                            input_stream_handler.data());
+  CalculatorGraphConfig config =
+      ::mediapipe::ParseTextProtoOrDie<CalculatorGraphConfig>(graph_proto);
+  std::vector<Packet> packet_dump;
+  tool::AddVectorSink("output", &config, &packet_dump);
+
+  CalculatorGraph graph;
+  MP_ASSERT_OK(graph.Initialize(config));
+
+  struct Run {
+    Timestamp timestamp;
+    int value;
+  };
+  std::vector<Run> runs = {{.timestamp = Timestamp(2000), .value = 2},
+                           {.timestamp = Timestamp(1000), .value = 1}};
+  for (const Run& run : runs) {
+    MP_ASSERT_OK(graph.StartRun({}));
+
+    if (select_packet) {
+      MP_EXPECT_OK(graph.AddPacketToInputStream(
+          "select", MakePacket<int>(0).At(run.timestamp)));
+    }
+    MP_EXPECT_OK(graph.AddPacketToInputStream(
+        "input", MakePacket<int>(run.value).At(run.timestamp)));
+    MP_ASSERT_OK(graph.WaitUntilIdle());
+    ASSERT_EQ(1, packet_dump.size());
+    EXPECT_EQ(run.value, packet_dump[0].Get<int>());
+    EXPECT_EQ(run.timestamp, packet_dump[0].Timestamp());
+
+    MP_ASSERT_OK(graph.CloseAllPacketSources());
+    MP_ASSERT_OK(graph.WaitUntilDone());
+
+    packet_dump.clear();
+  }
+}
+
+TEST(CalculatorGraph, MultipleRunsWithDifferentInputStreamHandlers) {
+  DoTestMultipleGraphRuns("BarrierInputStreamHandler", true);
+  DoTestMultipleGraphRuns("DefaultInputStreamHandler", true);
+  DoTestMultipleGraphRuns("EarlyCloseInputStreamHandler", true);
+  DoTestMultipleGraphRuns("FixedSizeInputStreamHandler", true);
+  DoTestMultipleGraphRuns("ImmediateInputStreamHandler", false);
+  DoTestMultipleGraphRuns("MuxInputStreamHandler", true);
+  DoTestMultipleGraphRuns("SyncSetInputStreamHandler", true);
+  DoTestMultipleGraphRuns("TimestampAlignInputStreamHandler", true);
 }
 
 }  // namespace

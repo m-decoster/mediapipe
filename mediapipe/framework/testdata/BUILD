@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 package(default_visibility = ["//visibility:private"])
 
@@ -31,7 +31,7 @@ mediapipe_cc_proto_library(
     name = "sky_light_calculator_cc_proto",
     srcs = ["sky_light_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//mediapipe:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [":sky_light_calculator_proto"],
 )
 
@@ -45,7 +45,7 @@ mediapipe_cc_proto_library(
     name = "night_light_calculator_cc_proto",
     srcs = ["night_light_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//mediapipe:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [":night_light_calculator_proto"],
 )
 

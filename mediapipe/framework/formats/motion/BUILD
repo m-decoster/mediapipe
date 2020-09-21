@@ -16,7 +16,7 @@
 # Description:
 #   Working with dense optical flow in mediapipe.
 
-licenses(["notice"])  # Apache 2.0
+licenses(["notice"])
 
 exports_files(["LICENSE"])
 
@@ -27,12 +27,13 @@ package(default_visibility = ["//visibility:private"])
 proto_library(
     name = "optical_flow_field_data_proto",
     srcs = ["optical_flow_field_data.proto"],
+    visibility = ["//visibility:public"],
 )
 
 mediapipe_cc_proto_library(
     name = "optical_flow_field_data_cc_proto",
     srcs = ["optical_flow_field_data.proto"],
-    visibility = ["//mediapipe:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = [":optical_flow_field_data_proto"],
 )
 
@@ -41,7 +42,7 @@ cc_library(
     srcs = ["optical_flow_field.cc"],
     hdrs = ["optical_flow_field.h"],
     visibility = [
-        "//mediapipe:__subpackages__",
+        "//visibility:public",
     ],
     deps = [
         "//mediapipe/framework:type_map",

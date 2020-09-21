@@ -42,6 +42,7 @@
 #include "mediapipe/framework/port/source_location.h"
 #include "mediapipe/framework/port/status_builder.h"
 #include "mediapipe/framework/timestamp.h"
+#include "mediapipe/framework/tool/name_util.h"
 #include "mediapipe/framework/tool/status_util.h"
 #include "mediapipe/framework/tool/tag_map.h"
 #include "mediapipe/framework/tool/validate_name.h"
@@ -85,7 +86,7 @@ Timestamp CalculatorNode::SourceProcessOrder(
 
   const CalculatorGraphConfig::Node& node_config =
       validated_graph_->Config().node(node_id_);
-  name_ = CanonicalNodeName(validated_graph_->Config(), node_id_);
+  name_ = tool::CanonicalNodeName(validated_graph_->Config(), node_id_);
 
   max_in_flight_ = node_config.max_in_flight();
   max_in_flight_ = max_in_flight_ ? max_in_flight_ : 1;
@@ -96,6 +97,7 @@ Timestamp CalculatorNode::SourceProcessOrder(
 
   const NodeTypeInfo& node_type_info =
       validated_graph_->CalculatorInfos()[node_id_];
+  const CalculatorContract& contract = node_type_info.Contract();
 
   uses_gpu_ =
       node_type_info.InputSidePacketTypes().HasTag(kGpuSharedTagName) ||
@@ -145,6 +147,14 @@ Timestamp CalculatorNode::SourceProcessOrder(
   MP_RETURN_IF_ERROR(InitializeInputStreamHandler(
       use_calc_specified ? handler_config : node_config.input_stream_handler(),
       node_type_info.InputStreamTypes()));
+
+  for (auto& stream : output_stream_handler_->OutputStreams()) {
+    stream->Spec()->offset_enabled =
+        (contract.GetTimestampOffset() != TimestampDiff::Unset());
+    stream->Spec()->offset = contract.GetTimestampOffset();
+  }
+  input_stream_handler_->SetProcessTimestampBounds(
+      contract.GetProcessTimestampBounds());
 
   return InitializeInputStreams(input_stream_managers, output_stream_managers);
 }
@@ -395,7 +405,7 @@ namespace {
 // Returns the Packet sent to an OutputSidePacket, or an empty packet
 // if none available.
 const Packet GetPacket(const OutputSidePacket& out) {
-  auto impl = dynamic_cast<const OutputSidePacketImpl*>(&out);
+  auto impl = static_cast<const OutputSidePacketImpl*>(&out);
   return (impl == nullptr) ? Packet() : impl->GetPacket();
 }
 
@@ -462,6 +472,19 @@ bool CalculatorNode::OutputsAreConstant(CalculatorContext* cc) {
   MP_RETURN_IF_ERROR(result).SetPrepend() << absl::Substitute(
       "Calculator::Open() for node \"$0\" failed: ", DebugName());
   needs_to_close_ = true;
+
+  bool offset_enabled = false;
+  for (auto& stream : output_stream_handler_->OutputStreams()) {
+    offset_enabled = offset_enabled || stream->Spec()->offset_enabled;
+  }
+  if (offset_enabled && input_stream_handler_->SyncSetCount() > 1) {
+    LOG(WARNING) << absl::Substitute(
+        "Calculator node \"$0\" is configured with multiple input sync-sets "
+        "and an output timestamp-offset, which will often conflict due to "
+        "the order of packet arrival.  With multiple input sync-sets, use "
+        "SetProcessTimestampBounds in place of SetTimestampOffset.",
+        DebugName());
+  }
 
   output_stream_handler_->Open(outputs);
 
@@ -727,21 +750,7 @@ std::string CalculatorNode::DebugInputStreamNames() const {
 
 std::string CalculatorNode::DebugName() const {
   DCHECK(calculator_state_);
-
-  const std::string first_output_stream_name =
-      output_stream_handler_->FirstStreamName();
-  if (!first_output_stream_name.empty()) {
-    // A calculator is unique by its output streams (one of them is
-    // sufficient) unless it is a sink.  For readability, its type name is
-    // included.
-    return absl::Substitute(
-        "[$0, $1 with output stream: $2]", calculator_state_->NodeName(),
-        calculator_state_->CalculatorType(), first_output_stream_name);
-  }
-  // If it is a sink, its full node spec is returned.
-  return absl::Substitute(
-      "[$0, $1 with node ID: $2 and $3]", calculator_state_->NodeName(),
-      calculator_state_->CalculatorType(), node_id_, DebugInputStreamNames());
+  return calculator_state_->NodeName();
 }
 
 // TODO: Split this function.
@@ -804,7 +813,8 @@ std::string CalculatorNode::DebugName() const {
         input_stream_handler_->FinalizeInputSet(input_timestamp, inputs);
         output_stream_handler_->PrepareOutputs(input_timestamp, outputs);
 
-        VLOG(2) << "Calling Calculator::Process() for node: " << DebugName();
+        VLOG(2) << "Calling Calculator::Process() for node: " << DebugName()
+                << " timestamp: " << input_timestamp;
 
         if (OutputsAreConstant(calculator_context)) {
           // Do nothing.
@@ -815,6 +825,9 @@ std::string CalculatorNode::DebugName() const {
               calculator_context);
           result = calculator_->Process(calculator_context);
         }
+
+        VLOG(2) << "Called Calculator::Process() for node: " << DebugName()
+                << " timestamp: " << input_timestamp;
 
         // Removes one packet from each shard and progresses to the next input
         // timestamp.

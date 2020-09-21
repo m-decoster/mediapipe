@@ -14,18 +14,23 @@
 
 #include "mediapipe/java/com/google/mediapipe/framework/jni/packet_getter_jni.h"
 
+#include "mediapipe/framework/calculator.pb.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/matrix.h"
 #include "mediapipe/framework/formats/time_series_header.pb.h"
 #include "mediapipe/framework/formats/video_stream_header.h"
 #include "mediapipe/framework/port/core_proto_inc.h"
+#include "mediapipe/framework/port/proto_ns.h"
 #include "mediapipe/java/com/google/mediapipe/framework/jni/colorspace.h"
 #include "mediapipe/java/com/google/mediapipe/framework/jni/graph.h"
+#include "mediapipe/java/com/google/mediapipe/framework/jni/jni_util.h"
 #ifndef MEDIAPIPE_DISABLE_GPU
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #endif  // !defined(MEDIAPIPE_DISABLE_GPU)
 
 namespace {
+using mediapipe::android::SerializedMessageIds;
+using mediapipe::android::ThrowIfError;
 
 template <typename T>
 const T& GetFromNativeHandle(int64_t packet_handle) {
@@ -141,6 +146,63 @@ JNIEXPORT jbyteArray JNICALL PACKET_GETTER_METHOD(nativeGetProtoBytes)(
   return data;
 }
 
+JNIEXPORT void JNICALL PACKET_GETTER_METHOD(nativeGetProto)(JNIEnv* env,
+                                                            jobject thiz,
+                                                            jlong packet,
+                                                            jobject result) {
+  mediapipe::Packet mediapipe_packet =
+      mediapipe::android::Graph::GetPacketFromHandle(packet);
+  mediapipe::Status status = mediapipe_packet.ValidateAsProtoMessageLite();
+  if (!ThrowIfError(env, status)) {
+    // Convert type_name and value to Java data.
+    const auto& proto_message = mediapipe_packet.GetProtoMessageLite();
+    std::string type_name = proto_message.GetTypeName();
+    jstring j_type_name = env->NewStringUTF(type_name.c_str());
+    std::string proto_bytes;
+    proto_message.SerializeToString(&proto_bytes);
+    jbyteArray j_proto_bytes = env->NewByteArray(proto_bytes.length());
+    env->SetByteArrayRegion(
+        j_proto_bytes, 0, proto_bytes.length(),
+        reinterpret_cast<const jbyte*>(proto_bytes.c_str()));
+
+    // Set type_name and value in the result Java object.
+    static SerializedMessageIds ids(env, result);
+    env->SetObjectField(result, ids.type_name_id, j_type_name);
+    env->SetObjectField(result, ids.value_id, j_proto_bytes);
+  }
+}
+
+JNIEXPORT jobjectArray JNICALL PACKET_GETTER_METHOD(nativeGetProtoVector)(
+    JNIEnv* env, jobject thiz, jlong packet) {
+  mediapipe::Packet mediapipe_packet =
+      mediapipe::android::Graph::GetPacketFromHandle(packet);
+  auto get_proto_vector = mediapipe_packet.GetVectorOfProtoMessageLitePtrs();
+  if (!get_proto_vector.ok()) {
+    env->Throw(mediapipe::android::CreateMediaPipeException(
+        env, get_proto_vector.status()));
+  }
+  const std::vector<const ::mediapipe::proto_ns::MessageLite*>& proto_vector =
+      get_proto_vector.ValueOrDie();
+  jobjectArray proto_array =
+      env->NewObjectArray(proto_vector.size(), env->FindClass("[B"), nullptr);
+  for (int i = 0; i < proto_vector.size(); ++i) {
+    const ::mediapipe::proto_ns::MessageLite* proto_message = proto_vector[i];
+
+    // Convert the proto object into a Java byte array.
+    std::string serialized;
+    proto_message->SerializeToString(&serialized);
+    jbyteArray byte_array = env->NewByteArray(serialized.size());
+    env->SetByteArrayRegion(byte_array, 0, serialized.size(),
+                            reinterpret_cast<const jbyte*>(serialized.c_str()));
+
+    // Add the serialized proto byte_array to the output array.
+    env->SetObjectArrayElement(proto_array, i, byte_array);
+    env->DeleteLocalRef(byte_array);
+  }
+
+  return proto_array;
+}
+
 JNIEXPORT jshortArray JNICALL PACKET_GETTER_METHOD(nativeGetInt16Vector)(
     JNIEnv* env, jobject thiz, jlong packet) {
   const std::vector<int16_t>& values =
@@ -209,7 +271,6 @@ JNIEXPORT jboolean JNICALL PACKET_GETTER_METHOD(nativeGetImageData)(
     JNIEnv* env, jobject thiz, jlong packet, jobject byte_buffer) {
   const ::mediapipe::ImageFrame& image =
       GetFromNativeHandle<::mediapipe::ImageFrame>(packet);
-  uint8* data = static_cast<uint8*>(env->GetDirectBufferAddress(byte_buffer));
 
   int64_t buffer_size = env->GetDirectBufferCapacity(byte_buffer);
 
@@ -224,7 +285,29 @@ JNIEXPORT jboolean JNICALL PACKET_GETTER_METHOD(nativeGetImageData)(
     return false;
   }
 
-  image.CopyToBuffer(data, expected_buffer_size);
+  switch (image.ByteDepth()) {
+    case 1: {
+      uint8* data =
+          static_cast<uint8*>(env->GetDirectBufferAddress(byte_buffer));
+      image.CopyToBuffer(data, expected_buffer_size);
+      break;
+    }
+    case 2: {
+      uint16* data =
+          static_cast<uint16*>(env->GetDirectBufferAddress(byte_buffer));
+      image.CopyToBuffer(data, expected_buffer_size);
+      break;
+    }
+    case 4: {
+      float* data =
+          static_cast<float*>(env->GetDirectBufferAddress(byte_buffer));
+      image.CopyToBuffer(data, expected_buffer_size);
+      break;
+    }
+    default: {
+      return false;
+    }
+  }
   return true;
 }
 

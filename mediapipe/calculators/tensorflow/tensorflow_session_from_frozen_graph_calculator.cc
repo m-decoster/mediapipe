@@ -26,13 +26,17 @@
 #include "mediapipe/calculators/tensorflow/tensorflow_session.h"
 #include "mediapipe/calculators/tensorflow/tensorflow_session_from_frozen_graph_calculator.pb.h"
 #include "mediapipe/framework/calculator_framework.h"
+#include "mediapipe/framework/deps/clock.h"
+#include "mediapipe/framework/deps/monotonic_clock.h"
+#include "mediapipe/framework/port/logging.h"
 #include "mediapipe/framework/port/ret_check.h"
 #include "mediapipe/framework/port/status.h"
 #include "mediapipe/framework/tool/status_util.h"
+#include "tensorflow/core/framework/graph.pb.h"
+#include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/core/public/session_options.h"
 
-#if defined(MEDIAPIPE_LITE) || defined(__ANDROID__) || \
-    defined(__APPLE__) && !TARGET_OS_OSX
+#if defined(MEDIAPIPE_MOBILE)
 #include "mediapipe/util/android/file/base/helpers.h"
 #else
 #include "mediapipe/framework/port/file_helpers.h"
@@ -41,6 +45,17 @@
 namespace mediapipe {
 
 namespace tf = ::tensorflow;
+
+namespace {
+// Updates the graph nodes to use the device as specified by device_id.
+void SetPreferredDevice(tf::GraphDef* graph_def, absl::string_view device_id) {
+  for (auto& node : *graph_def->mutable_node()) {
+    if (node.device().empty()) {
+      node.set_device(std::string(device_id));
+    }
+  }
+}
+}  // namespace
 
 class TensorFlowSessionFromFrozenGraphCalculator : public CalculatorBase {
  public:
@@ -78,6 +93,9 @@ class TensorFlowSessionFromFrozenGraphCalculator : public CalculatorBase {
   }
 
   ::mediapipe::Status Open(CalculatorContext* cc) override {
+    auto clock = std::unique_ptr<mediapipe::Clock>(
+        mediapipe::MonotonicClock::CreateSynchronizedMonotonicClock());
+    const uint64 start_time = absl::ToUnixMicros(clock->TimeNow());
     const auto& options =
         cc->Options<TensorFlowSessionFromFrozenGraphCalculatorOptions>();
     // Output bundle packet.
@@ -109,8 +127,14 @@ class TensorFlowSessionFromFrozenGraphCalculator : public CalculatorBase {
     tensorflow::GraphDef graph_def;
 
     RET_CHECK(graph_def.ParseFromString(graph_def_serialized));
+
+    // Update the graph nodes to use the preferred device, if set.
+    if (!options.preferred_device_id().empty()) {
+      SetPreferredDevice(&graph_def, options.preferred_device_id());
+    }
+
     const tf::Status tf_status = session->session->Create(graph_def);
-    RET_CHECK(tf_status.ok()) << "Create failed: " << tf_status.error_message();
+    RET_CHECK(tf_status.ok()) << "Create failed: " << tf_status.ToString();
 
     for (const auto& key_value : options.tag_to_tensor_names()) {
       session->tag_to_tensor_map[key_value.first] = key_value.second;
@@ -120,10 +144,13 @@ class TensorFlowSessionFromFrozenGraphCalculator : public CalculatorBase {
           session->session->Run({}, {}, initialization_op_names, {});
       // RET_CHECK on the tf::Status object itself in order to print an
       // informative error message.
-      RET_CHECK(tf_status.ok()) << "Run failed: " << tf_status.error_message();
+      RET_CHECK(tf_status.ok()) << "Run failed: " << tf_status.ToString();
     }
 
     cc->OutputSidePackets().Tag("SESSION").Set(Adopt(session.release()));
+    const uint64 end_time = absl::ToUnixMicros(clock->TimeNow());
+    LOG(INFO) << "Loaded frozen model in: " << end_time - start_time
+              << " microseconds.";
     return ::mediapipe::OkStatus();
   }
 
