@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ubuntu:18.04
+FROM nvidia/cudagl:10.1-base
 
 MAINTAINER <mediapipe@google.com>
 
